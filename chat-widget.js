@@ -1,222 +1,128 @@
-// Interactive Chat Widget for n8n
 (function () {
-  if (window.N8nChatWidgetLoaded) return;
-  window.N8nChatWidgetLoaded = true;
+  const config = window.ChatWidgetConfig || {};
+  const webhookUrl = config.webhook?.url;
+  const route = config.webhook?.route || "general";
 
-  const fontElement = document.createElement("link");
-  fontElement.rel = "stylesheet";
-  fontElement.href =
-    "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap";
-  document.head.appendChild(fontElement);
+  if (!webhookUrl) {
+    console.error("ChatWidget: Webhook URL missing");
+    return;
+  }
 
-  const widgetStyles = document.createElement("style");
-  widgetStyles.textContent = `
-    .chat-assist-widget {
-      --chat-color-primary: var(--chat-widget-primary, #10b981);
-      --chat-color-secondary: var(--chat-widget-secondary, #059669);
-      --chat-color-surface: var(--chat-widget-surface, #ffffff);
-      --chat-color-text: var(--chat-widget-text, #1f2937);
-      font-family: 'Poppins', sans-serif;
-    }
-    .chat-assist-widget .chat-window {
-      position: fixed;
-      bottom: 90px;
-      right: 20px;
-      width: 380px;
-      height: 580px;
-      background: var(--chat-color-surface);
-      border-radius: 12px;
-      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      z-index: 999;
-    }
-    .chat-assist-widget .chat-window.visible {
-      display: flex;
-    }
-    .chat-assist-widget .chat-header {
-      padding: 16px;
-      background: linear-gradient(135deg, var(--chat-color-primary), var(--chat-color-secondary));
-      color: white;
-      font-weight: 600;
-      font-size: 16px;
-    }
-    .chat-assist-widget .chat-body {
-      flex: 1;
-      display: none;
-      flex-direction: column;
-    }
-    .chat-assist-widget .chat-body.active {
-      display: flex;
-    }
-    .chat-assist-widget .chat-messages {
-      flex: 1;
-      padding: 16px;
-      overflow-y: auto;
-      background: #f9fafb;
-    }
-    .chat-assist-widget .chat-controls {
-      padding: 12px;
-      border-top: 1px solid #e5e7eb;
-      display: flex;
-      gap: 10px;
-    }
-    .chat-assist-widget .chat-textarea {
-      flex: 1;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      resize: none;
-    }
-    .chat-assist-widget .chat-submit {
-      background: linear-gradient(135deg, var(--chat-color-primary), var(--chat-color-secondary));
-      color: white;
-      border: none;
-      border-radius: 8px;
-      width: 48px;
-      cursor: pointer;
-    }
-    .chat-assist-widget .chat-launcher {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: linear-gradient(135deg, var(--chat-color-primary), var(--chat-color-secondary));
-      color: white;
-      border: none;
-      border-radius: 9999px;
-      padding: 14px 18px;
-      cursor: pointer;
-      font-weight: 600;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-      z-index: 999;
-    }
-    .chat-assist-widget .chat-bubble {
-      padding: 12px 14px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-    }
-    .chat-assist-widget .user-bubble {
-      background: var(--chat-color-primary);
-      color: white;
-      align-self: flex-end;
-    }
-    .chat-assist-widget .bot-bubble {
-      background: white;
-      color: var(--chat-color-text);
-      align-self: flex-start;
-      border: 1px solid #e5e7eb;
-    }
-    .error-text { color: red; font-size: 12px; margin-top: 4px; }
-  `;
-  document.head.appendChild(widgetStyles);
-
-  const defaultSettings = {
-    webhook: { url: "", route: "" },
-    branding: { name: "", welcomeText: "" },
-    style: {}
+  // ---------- State ----------
+  let sessionId = Date.now() + "-" + Math.random().toString(36).substring(2);
+  let step = "name"; // name → phone → email → chat
+  let leadData = {
+    name: "",
+    phone: "",
+    email: ""
   };
 
-  const settings = window.ChatWidgetConfig
-    ? {
-        webhook: { ...defaultSettings.webhook, ...window.ChatWidgetConfig.webhook },
-        branding: { ...defaultSettings.branding, ...window.ChatWidgetConfig.branding },
-        style: { ...defaultSettings.style, ...window.ChatWidgetConfig.style }
-      }
-    : defaultSettings;
+  // ---------- UI ----------
+  const widget = document.createElement("div");
+  widget.innerHTML = `
+    <style>
+      .cw-btn { position: fixed; bottom: 20px; right: 20px; background: #10b981; color: #fff; padding: 12px 16px; border-radius: 50px; cursor: pointer; }
+      .cw-box { position: fixed; bottom: 80px; right: 20px; width: 320px; background: #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.2); display: none; flex-direction: column; }
+      .cw-header { padding: 12px; background: #10b981; color: #fff; font-weight: bold; }
+      .cw-messages { padding: 10px; height: 280px; overflow-y: auto; font-size: 14px; }
+      .cw-input { display: flex; border-top: 1px solid #ddd; }
+      .cw-input input { flex: 1; border: none; padding: 10px; }
+      .cw-input button { background: #10b981; color: #fff; border: none; padding: 10px 14px; cursor: pointer; }
+      .cw-user { text-align: right; margin: 6px 0; }
+      .cw-bot { text-align: left; margin: 6px 0; color: #333; }
+    </style>
 
-  let conversationId = "";
-
-  const widgetRoot = document.createElement("div");
-  widgetRoot.className = "chat-assist-widget";
-
-  const chatWindow = document.createElement("div");
-  chatWindow.className = "chat-window";
-
-  chatWindow.innerHTML = `
-    <div class="chat-header">${settings.branding.name || "Chat"}</div>
-
-    <div class="chat-body" id="mobileEntry">
-      <div style="padding:16px">
-        <h3>${settings.branding.welcomeText || "Enter Your Mobile to Start Chat"}</h3>
-        <input type="text" id="mobileInput" placeholder="Mobile Number" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;">
-        <div class="error-text" id="mobileError"></div>
-        <button id="mobileSubmit" style="margin-top:12px;padding:12px 16px;background:#10b981;color:white;border:none;border-radius:8px;width:100%;cursor:pointer;">Continue</button>
-      </div>
-    </div>
-
-    <div class="chat-body" id="chatBody">
-      <div class="chat-messages"></div>
-      <div class="chat-controls">
-        <textarea class="chat-textarea" placeholder="Type message..."></textarea>
-        <button class="chat-submit">Send</button>
+    <div class="cw-btn">Chat</div>
+    <div class="cw-box">
+      <div class="cw-header">${config.branding?.name || "Chat Support"}</div>
+      <div class="cw-messages"></div>
+      <div class="cw-input">
+        <input type="text" placeholder="Type here..." />
+        <button>Send</button>
       </div>
     </div>
   `;
 
-  const launcher = document.createElement("button");
-  launcher.className = "chat-launcher";
-  launcher.innerText = "Chat with us";
-  widgetRoot.appendChild(chatWindow);
-  widgetRoot.appendChild(launcher);
-  document.body.appendChild(widgetRoot);
+  document.body.appendChild(widget);
 
-  const mobileInput = chatWindow.querySelector("#mobileInput");
-  const mobileError = chatWindow.querySelector("#mobileError");
-  const mobileEntry = chatWindow.querySelector("#mobileEntry");
-  const chatBody = chatWindow.querySelector("#chatBody");
-  const messagesContainer = chatWindow.querySelector(".chat-messages");
-  const textArea = chatWindow.querySelector(".chat-textarea");
-  const sendBtn = chatWindow.querySelector(".chat-submit");
+  const btn = widget.querySelector(".cw-btn");
+  const box = widget.querySelector(".cw-box");
+  const messages = widget.querySelector(".cw-messages");
+  const input = widget.querySelector("input");
+  const sendBtn = widget.querySelector("button");
 
-  launcher.addEventListener("click", () => {
-    chatWindow.classList.toggle("visible");
-  });
+  btn.onclick = () => {
+    box.style.display = box.style.display === "flex" ? "none" : "flex";
+    box.style.flexDirection = "column";
+  };
 
-  document.querySelector("#mobileSubmit").addEventListener("click", async () => {
-    const mobile = mobileInput.value.trim();
-    mobileError.innerText = "";
-    if (!mobile) {
-      mobileError.innerText = "Please enter mobile number";
+  // ---------- Helpers ----------
+  function addMessage(text, type) {
+    const div = document.createElement("div");
+    div.className = type === "user" ? "cw-user" : "cw-bot";
+    div.innerText = text;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function askNext() {
+    if (step === "name") addMessage("Hi! What's your name?", "bot");
+    if (step === "phone") addMessage("Please share your phone number 📞", "bot");
+    if (step === "email") addMessage("Lastly, your email address 📧", "bot");
+  }
+
+  // ---------- Send to Webhook ----------
+  async function sendToWebhook(message) {
+    const payload = {
+      sessionId,
+      route,
+      message,
+      lead: leadData
+    };
+
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data?.reply) addMessage(data.reply, "bot");
+  }
+
+  // ---------- Handle Input ----------
+  sendBtn.onclick = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage(text, "user");
+    input.value = "";
+
+    if (step === "name") {
+      leadData.name = text;
+      step = "phone";
+      askNext();
       return;
     }
 
-    conversationId = crypto.randomUUID();
-    mobileEntry.style.display = "none";
-    chatBody.classList.add("active");
+    if (step === "phone") {
+      leadData.phone = text;
+      step = "email";
+      askNext();
+      return;
+    }
 
-    await fetch(settings.webhook.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "sendMessage",
-        sessionId: conversationId,
-        route: settings.webhook.route,
-        chatInput: `Mobile: ${mobile}`,
-        metadata: { mobile }
-      })
-    });
-  });
+    if (step === "email") {
+      leadData.email = text;
+      step = "chat";
+      addMessage("Thank you! How can I help you today?", "bot");
+      await sendToWebhook("Lead captured");
+      return;
+    }
 
-  sendBtn.addEventListener("click", async () => {
-    const text = textArea.value.trim();
-    if (!text) return;
+    await sendToWebhook(text);
+  };
 
-    messagesContainer.innerHTML += `<div class="chat-bubble user-bubble">${text}</div>`;
-    textArea.value = "";
-
-    const res = await fetch(settings.webhook.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "sendMessage",
-        sessionId: conversationId,
-        route: settings.webhook.route,
-        chatInput: text
-      })
-    });
-    const data = await res.json();
-    messagesContainer.innerHTML += `<div class="chat-bubble bot-bubble">${data.output}</div>`;
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  });
+  // ---------- Start ----------
+  askNext();
 })();
