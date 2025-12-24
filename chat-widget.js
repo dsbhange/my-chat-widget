@@ -559,20 +559,28 @@
         suggestedQuestions: [] // Default empty array for suggested questions
     };
 
-    // Merge user settings with defaults
-    const settings = window.ChatWidgetConfig ? 
-        {
-            webhook: { ...defaultSettings.webhook, ...window.ChatWidgetConfig.webhook },
-            branding: { ...defaultSettings.branding, ...window.ChatWidgetConfig.branding },
-            style: { 
-                ...defaultSettings.style, 
-                ...window.ChatWidgetConfig.style,
-                // Force green colors if user provided purple
-                primaryColor: window.ChatWidgetConfig.style?.primaryColor === '#854fff' ? '#10b981' : (window.ChatWidgetConfig.style?.primaryColor || '#10b981'),
-                secondaryColor: window.ChatWidgetConfig.style?.secondaryColor === '#6b3fd4' ? '#059669' : (window.ChatWidgetConfig.style?.secondaryColor || '#059669')
-            },
-            suggestedQuestions: window.ChatWidgetConfig.suggestedQuestions || defaultSettings.suggestedQuestions
-        } : defaultSettings;
+    // Merge user settings with defaults (safe spreads to avoid TypeError if parts are missing)
+    const cfg = window.ChatWidgetConfig || {};
+    const cfgWebhook = cfg.webhook || {};
+    const cfgBranding = cfg.branding || {};
+    const cfgStyle = cfg.style || {};
+
+    const settings = {
+        webhook: { ...defaultSettings.webhook, ...cfgWebhook },
+        branding: { ...defaultSettings.branding, ...cfgBranding },
+        style: {
+            ...defaultSettings.style,
+            ...cfgStyle,
+            // Force green colors if user provided purple
+            primaryColor:
+                (cfgStyle.primaryColor === '#854fff') ? defaultSettings.style.primaryColor
+                : (cfgStyle.primaryColor || defaultSettings.style.primaryColor),
+            secondaryColor:
+                (cfgStyle.secondaryColor === '#6b3fd4') ? defaultSettings.style.secondaryColor
+                : (cfgStyle.secondaryColor || defaultSettings.style.secondaryColor)
+        },
+        suggestedQuestions: cfg.suggestedQuestions || defaultSettings.suggestedQuestions
+    };
 
     // Session tracking
     let conversationId = '';
@@ -658,12 +666,13 @@
     // Create toggle button
     const launchButton = document.createElement('button');
     launchButton.className = `chat-launcher ${settings.style.position === 'left' ? 'left-side' : 'right-side'}`;
+    // Use a valid SVG (chat bubble) and avoid truncated content
     launchButton.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
         </svg>
         <span class="chat-launcher-text">Need help?</span>`;
-    
+
     // Add elements to DOM
     widgetRoot.appendChild(chatWindow);
     widgetRoot.appendChild(launchButton);
@@ -691,7 +700,11 @@
 
     // Helper function to generate unique session ID
     function createSessionId() {
-        return crypto.randomUUID();
+        // crypto.randomUUID is modern; fallback to simple random if unavailable
+        if (crypto && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+        return 'sess-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
     }
 
     // Create typing indicator element
