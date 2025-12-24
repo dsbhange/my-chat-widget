@@ -559,28 +559,20 @@
         suggestedQuestions: [] // Default empty array for suggested questions
     };
 
-    // Merge user settings with defaults (safe spreads to avoid TypeError if parts are missing)
-    const cfg = window.ChatWidgetConfig || {};
-    const cfgWebhook = cfg.webhook || {};
-    const cfgBranding = cfg.branding || {};
-    const cfgStyle = cfg.style || {};
-
-    const settings = {
-        webhook: { ...defaultSettings.webhook, ...cfgWebhook },
-        branding: { ...defaultSettings.branding, ...cfgBranding },
-        style: {
-            ...defaultSettings.style,
-            ...cfgStyle,
-            // Force green colors if user provided purple
-            primaryColor:
-                (cfgStyle.primaryColor === '#854fff') ? defaultSettings.style.primaryColor
-                : (cfgStyle.primaryColor || defaultSettings.style.primaryColor),
-            secondaryColor:
-                (cfgStyle.secondaryColor === '#6b3fd4') ? defaultSettings.style.secondaryColor
-                : (cfgStyle.secondaryColor || defaultSettings.style.secondaryColor)
-        },
-        suggestedQuestions: cfg.suggestedQuestions || defaultSettings.suggestedQuestions
-    };
+    // Merge user settings with defaults
+    const settings = window.ChatWidgetConfig ? 
+        {
+            webhook: { ...defaultSettings.webhook, ...window.ChatWidgetConfig.webhook },
+            branding: { ...defaultSettings.branding, ...window.ChatWidgetConfig.branding },
+            style: { 
+                ...defaultSettings.style, 
+                ...window.ChatWidgetConfig.style,
+                // Force green colors if user provided purple
+                primaryColor: window.ChatWidgetConfig.style?.primaryColor === '#854fff' ? '#10b981' : (window.ChatWidgetConfig.style?.primaryColor || '#10b981'),
+                secondaryColor: window.ChatWidgetConfig.style?.secondaryColor === '#6b3fd4' ? '#059669' : (window.ChatWidgetConfig.style?.secondaryColor || '#059669')
+            },
+            suggestedQuestions: window.ChatWidgetConfig.suggestedQuestions || defaultSettings.suggestedQuestions
+        } : defaultSettings;
 
     // Session tracking
     let conversationId = '';
@@ -631,12 +623,6 @@
                     <input type="email" id="chat-user-email" class="form-input" placeholder="Your email address" required>
                     <div class="error-text" id="email-error"></div>
                 </div>
-                <div class="form-field">
-                    <label class="form-label" for="chat-user-phone">Phone</label>
-                    <input type="tel" id="chat-user-phone" class="form-input" placeholder="10-digit mobile number" required>
-                    <div class="error-text" id="phone-error"></div>
-                </div>
-             
                 <button type="submit" class="submit-registration">Continue to Chat</button>
             </form>
         </div>
@@ -666,13 +652,12 @@
     // Create toggle button
     const launchButton = document.createElement('button');
     launchButton.className = `chat-launcher ${settings.style.position === 'left' ? 'left-side' : 'right-side'}`;
-    // Use a valid SVG (chat bubble) and avoid truncated content
     launchButton.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
         </svg>
         <span class="chat-launcher-text">Need help?</span>`;
-
+    
     // Add elements to DOM
     widgetRoot.appendChild(chatWindow);
     widgetRoot.appendChild(launchButton);
@@ -691,20 +676,12 @@
     const chatWelcome = chatWindow.querySelector('.chat-welcome');
     const nameInput = chatWindow.querySelector('#chat-user-name');
     const emailInput = chatWindow.querySelector('#chat-user-email');
-    // Added missing phone selectors
-    const phoneInput = chatWindow.querySelector('#chat-user-phone');
-    const phoneError = chatWindow.querySelector('#phone-error');
-    
     const nameError = chatWindow.querySelector('#name-error');
     const emailError = chatWindow.querySelector('#email-error');
 
     // Helper function to generate unique session ID
     function createSessionId() {
-        // crypto.randomUUID is modern; fallback to simple random if unavailable
-        if (crypto && typeof crypto.randomUUID === 'function') {
-            return crypto.randomUUID();
-        }
-        return 'sess-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        return crypto.randomUUID();
     }
 
     // Create typing indicator element
@@ -742,29 +719,20 @@
         return emailRegex.test(email);
     }
 
-    // Validate phone format
-    function isValidPhone(phone) {
-        return /^[6-9]\d{9}$/.test(phone);
-    }
-
     // Handle registration form submission
     async function handleRegistration(event) {
         event.preventDefault();
         
         // Reset error messages
-        // Removed duplicate const declarations to avoid scope errors
-        nameInput.classList.remove('error');
-        emailInput.classList.remove('error');
-        phoneInput.classList.remove('error');
         nameError.textContent = '';
         emailError.textContent = '';
-        phoneError.textContent = '';
+        nameInput.classList.remove('error');
+        emailInput.classList.remove('error');
         
         // Get values
         const name = nameInput.value.trim();
         const email = emailInput.value.trim();
-        const phone = phoneInput.value.trim();
-
+        
         // Validate
         let isValid = true;
         
@@ -781,16 +749,6 @@
         } else if (!isValidEmail(email)) {
             emailError.textContent = 'Please enter a valid email address';
             emailInput.classList.add('error');
-            isValid = false;
-        }
-
-        if (!phone) {
-            phoneError.textContent = 'Please enter your phone number';
-            phoneInput.classList.add('error');
-            isValid = false;
-        } else if (!isValidPhone(phone)) {
-            phoneError.textContent = 'Enter a valid 10-digit mobile number';
-            phoneInput.classList.add('error');
             isValid = false;
         }
         
@@ -831,7 +789,7 @@
             const sessionResponseData = await sessionResponse.json();
             
             // Send user info as first message
-            const userInfoMessage = `Name: ${name}\nPhone: ${phone}\nEmail: ${email}`;
+            const userInfoMessage = `Name: ${name}\nEmail: ${email}`;
             
             const userInfoData = {
                 action: "sendMessage",
@@ -841,7 +799,6 @@
                 metadata: {
                     userId: email,
                     userName: name,
-                    phone: phone,
                     isUserInfo: true
                 }
             };
@@ -858,9 +815,7 @@
             const userInfoResponseData = await userInfoResponse.json();
             
             // Remove typing indicator
-            if(messagesContainer.contains(typingIndicator)) {
-                messagesContainer.removeChild(typingIndicator);
-            }
+            messagesContainer.removeChild(typingIndicator);
             
             // Display initial bot message with clickable links
             const botMessage = document.createElement('div');
@@ -913,33 +868,35 @@
 
     // Send a message to the webhook
     async function submitMessage(messageText) {
-        if (!messageText || isWaitingForResponse) return;
-
-        // 1. Add User Message to UI
-        const userBubble = document.createElement('div');
-        userBubble.className = 'chat-bubble user-bubble';
-        userBubble.textContent = messageText;
-        messagesContainer.appendChild(userBubble);
+        if (isWaitingForResponse) return;
         
-        // Scroll to bottom
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-        // Set state to waiting
         isWaitingForResponse = true;
-        sendButton.disabled = true;
-
-        // 2. Show Typing Indicator
-        const typingIndicator = createTypingIndicator();
-        messagesContainer.appendChild(typingIndicator);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-        // Prepare Payload
-        const messageData = {
+        
+        // Get user info if available
+        const email = nameInput ? nameInput.value.trim() : "";
+        const name = emailInput ? emailInput.value.trim() : "";
+        
+        const requestData = {
             action: "sendMessage",
             sessionId: conversationId,
             route: settings.webhook.route,
-            chatInput: messageText
+            chatInput: messageText,
+            metadata: {
+                userId: email,
+                userName: name
+            }
         };
+
+        // Display user message
+        const userMessage = document.createElement('div');
+        userMessage.className = 'chat-bubble user-bubble';
+        userMessage.textContent = messageText;
+        messagesContainer.appendChild(userMessage);
+        
+        // Show typing indicator
+        const typingIndicator = createTypingIndicator();
+        messagesContainer.appendChild(typingIndicator);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
         try {
             const response = await fetch(settings.webhook.url, {
@@ -947,41 +904,35 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(messageData)
+                body: JSON.stringify(requestData)
             });
-
+            
             const responseData = await response.json();
-
-            // 3. Remove Typing Indicator
-            if(messagesContainer.contains(typingIndicator)) {
-                messagesContainer.removeChild(typingIndicator);
-            }
-
-            // 4. Add Bot Response
-            const botBubble = document.createElement('div');
-            botBubble.className = 'chat-bubble bot-bubble';
-            const responseText = Array.isArray(responseData) ? 
-                responseData[0].output : responseData.output;
             
-            botBubble.innerHTML = linkifyText(responseText || "I didn't quite catch that.");
-            messagesContainer.appendChild(botBubble);
+            // Remove typing indicator
+            messagesContainer.removeChild(typingIndicator);
+            
+            // Display bot response with clickable links
+            const botMessage = document.createElement('div');
+            botMessage.className = 'chat-bubble bot-bubble';
+            const responseText = Array.isArray(responseData) ? responseData[0].output : responseData.output;
+            botMessage.innerHTML = linkifyText(responseText);
+            messagesContainer.appendChild(botMessage);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
         } catch (error) {
-            console.error('Chat error:', error);
+            console.error('Message submission error:', error);
             
-            if(messagesContainer.contains(typingIndicator)) {
-                messagesContainer.removeChild(typingIndicator);
-            }
-
-            const errorBubble = document.createElement('div');
-            errorBubble.className = 'chat-bubble bot-bubble';
-            errorBubble.textContent = "Connection error. Please try again.";
-            messagesContainer.appendChild(errorBubble);
+            // Remove typing indicator
+            messagesContainer.removeChild(typingIndicator);
+            
+            // Show error message
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'chat-bubble bot-bubble';
+            errorMessage.textContent = "Sorry, I couldn't send your message. Please try again.";
+            messagesContainer.appendChild(errorMessage);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } finally {
             isWaitingForResponse = false;
-            sendButton.disabled = false;
         }
     }
 
