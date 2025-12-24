@@ -1,11 +1,3 @@
-<think>
-The user says: "this chat widget dont get mobile no. user input i need to add user input Mobile no. name and email . dont change any extra change"
-
-
-## Interpreting User Request  
-- The user wants to modify a chat widget to include fields for Mobile number, Name, and Email.
-</think>```javascript
-// Interactive Chat Widget for n8n
 (function() {
     // Initialize widget only once
     if (window.N8nChatWidgetLoaded) return;
