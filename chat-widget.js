@@ -623,11 +623,11 @@
                     <input type="email" id="chat-user-email" class="form-input" placeholder="Your email address" required>
                     <div class="error-text" id="email-error"></div>
                 </div>
-<div class="form-field">
-    <label class="form-label" for="chat-user-phone">Phone</label>
-    <input type="tel" id="chat-user-phone" class="form-input" placeholder="10-digit mobile number" required>
-    <div class="error-text" id="phone-error"></div>
-</div>
+                <div class="form-field">
+                    <label class="form-label" for="chat-user-phone">Phone</label>
+                    <input type="tel" id="chat-user-phone" class="form-input" placeholder="10-digit mobile number" required>
+                    <div class="error-text" id="phone-error"></div>
+                </div>
              
                 <button type="submit" class="submit-registration">Continue to Chat</button>
             </form>
@@ -682,6 +682,10 @@
     const chatWelcome = chatWindow.querySelector('.chat-welcome');
     const nameInput = chatWindow.querySelector('#chat-user-name');
     const emailInput = chatWindow.querySelector('#chat-user-email');
+    // Added missing phone selectors
+    const phoneInput = chatWindow.querySelector('#chat-user-phone');
+    const phoneError = chatWindow.querySelector('#phone-error');
+    
     const nameError = chatWindow.querySelector('#name-error');
     const emailError = chatWindow.querySelector('#email-error');
 
@@ -724,21 +728,24 @@
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     }
+
+    // Validate phone format
     function isValidPhone(phone) {
-    return /^[6-9]\d{9}$/.test(phone);
+        return /^[6-9]\d{9}$/.test(phone);
+    }
 
     // Handle registration form submission
     async function handleRegistration(event) {
         event.preventDefault();
         
         // Reset error messages
-       const nameInput = chatWindow.querySelector('#chat-user-name');
-const phoneInput = chatWindow.querySelector('#chat-user-phone');
-const emailInput = chatWindow.querySelector('#chat-user-email');
-
-const nameError = chatWindow.querySelector('#name-error');
-const phoneError = chatWindow.querySelector('#phone-error');
-const emailError = chatWindow.querySelector('#email-error');
+        // Removed duplicate const declarations to avoid scope errors
+        nameInput.classList.remove('error');
+        emailInput.classList.remove('error');
+        phoneInput.classList.remove('error');
+        nameError.textContent = '';
+        emailError.textContent = '';
+        phoneError.textContent = '';
         
         // Get values
         const name = nameInput.value.trim();
@@ -765,15 +772,14 @@ const emailError = chatWindow.querySelector('#email-error');
         }
 
         if (!phone) {
-    phoneError.textContent = 'Please enter your phone number';
-    phoneInput.classList.add('error');
-    isValid = false;
-} else if (!isValidPhone(phone)) {
-    phoneError.textContent = 'Enter a valid 10-digit mobile number';
-    phoneInput.classList.add('error');
-    isValid = false;
-}
-
+            phoneError.textContent = 'Please enter your phone number';
+            phoneInput.classList.add('error');
+            isValid = false;
+        } else if (!isValidPhone(phone)) {
+            phoneError.textContent = 'Enter a valid 10-digit mobile number';
+            phoneInput.classList.add('error');
+            isValid = false;
+        }
         
         if (!isValid) return;
         
@@ -812,7 +818,7 @@ const emailError = chatWindow.querySelector('#email-error');
             const sessionResponseData = await sessionResponse.json();
             
             // Send user info as first message
-const userInfoMessage = `Name: ${name}\nPhone: ${phone}\nEmail: ${email}`;
+            const userInfoMessage = `Name: ${name}\nPhone: ${phone}\nEmail: ${email}`;
             
             const userInfoData = {
                 action: "sendMessage",
@@ -822,8 +828,7 @@ const userInfoMessage = `Name: ${name}\nPhone: ${phone}\nEmail: ${email}`;
                 metadata: {
                     userId: email,
                     userName: name,
-                        phone: phone
-
+                    phone: phone,
                     isUserInfo: true
                 }
             };
@@ -840,7 +845,9 @@ const userInfoMessage = `Name: ${name}\nPhone: ${phone}\nEmail: ${email}`;
             const userInfoResponseData = await userInfoResponse.json();
             
             // Remove typing indicator
-            messagesContainer.removeChild(typingIndicator);
+            if(messagesContainer.contains(typingIndicator)) {
+                messagesContainer.removeChild(typingIndicator);
+            }
             
             // Display initial bot message with clickable links
             const botMessage = document.createElement('div');
@@ -893,37 +900,33 @@ const userInfoMessage = `Name: ${name}\nPhone: ${phone}\nEmail: ${email}`;
 
     // Send a message to the webhook
     async function submitMessage(messageText) {
-        if (isWaitingForResponse) return;
+        if (!messageText || isWaitingForResponse) return;
+
+        // 1. Add User Message to UI
+        const userBubble = document.createElement('div');
+        userBubble.className = 'chat-bubble user-bubble';
+        userBubble.textContent = messageText;
+        messagesContainer.appendChild(userBubble);
         
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Set state to waiting
         isWaitingForResponse = true;
-        
-        // Get user info if available
-        const email = nameInput ? nameInput.value.trim() : "";
-        const name = emailInput ? emailInput.value.trim() : "";
-            const phone = phoneInput ? phoneInput.value.trim() : "";
+        sendButton.disabled = true;
 
-        
-        const requestData = {
-            action: "sendMessage",
-            sessionId: conversationId,
-            route: settings.webhook.route,
-            chatInput: messageText,
-            metadata: {
-                userId: email,
-                userName: name
-            }
-        };
-
-        // Display user message
-        const userMessage = document.createElement('div');
-        userMessage.className = 'chat-bubble user-bubble';
-        userMessage.textContent = messageText;
-        messagesContainer.appendChild(userMessage);
-        
-        // Show typing indicator
+        // 2. Show Typing Indicator
         const typingIndicator = createTypingIndicator();
         messagesContainer.appendChild(typingIndicator);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Prepare Payload
+        const messageData = {
+            action: "sendMessage",
+            sessionId: conversationId,
+            route: settings.webhook.route,
+            chatInput: messageText
+        };
 
         try {
             const response = await fetch(settings.webhook.url, {
@@ -931,35 +934,41 @@ const userInfoMessage = `Name: ${name}\nPhone: ${phone}\nEmail: ${email}`;
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(requestData)
+                body: JSON.stringify(messageData)
             });
-            
+
             const responseData = await response.json();
+
+            // 3. Remove Typing Indicator
+            if(messagesContainer.contains(typingIndicator)) {
+                messagesContainer.removeChild(typingIndicator);
+            }
+
+            // 4. Add Bot Response
+            const botBubble = document.createElement('div');
+            botBubble.className = 'chat-bubble bot-bubble';
+            const responseText = Array.isArray(responseData) ? 
+                responseData[0].output : responseData.output;
             
-            // Remove typing indicator
-            messagesContainer.removeChild(typingIndicator);
-            
-            // Display bot response with clickable links
-            const botMessage = document.createElement('div');
-            botMessage.className = 'chat-bubble bot-bubble';
-            const responseText = Array.isArray(responseData) ? responseData[0].output : responseData.output;
-            botMessage.innerHTML = linkifyText(responseText);
-            messagesContainer.appendChild(botMessage);
+            botBubble.innerHTML = linkifyText(responseText || "I didn't quite catch that.");
+            messagesContainer.appendChild(botBubble);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
         } catch (error) {
-            console.error('Message submission error:', error);
+            console.error('Chat error:', error);
             
-            // Remove typing indicator
-            messagesContainer.removeChild(typingIndicator);
-            
-            // Show error message
-            const errorMessage = document.createElement('div');
-            errorMessage.className = 'chat-bubble bot-bubble';
-            errorMessage.textContent = "Sorry, I couldn't send your message. Please try again.";
-            messagesContainer.appendChild(errorMessage);
+            if(messagesContainer.contains(typingIndicator)) {
+                messagesContainer.removeChild(typingIndicator);
+            }
+
+            const errorBubble = document.createElement('div');
+            errorBubble.className = 'chat-bubble bot-bubble';
+            errorBubble.textContent = "Connection error. Please try again.";
+            messagesContainer.appendChild(errorBubble);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } finally {
             isWaitingForResponse = false;
+            sendButton.disabled = false;
         }
     }
 
