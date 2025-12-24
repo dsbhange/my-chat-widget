@@ -1,370 +1,214 @@
-/**
- * ============================================================
- * CHAT WIDGET – ENTERPRISE VERSION
- * ============================================================
- * File Name : chat-widget.js
- * Author    : Your Company
- * Purpose   : Website Chat Widget with Lead Capture
- * Version   : 1.0.0
- * ============================================================
- *
- * FEATURES
- * ------------------------------------------------------------
- * ✓ Floating Chat Button
- * ✓ Expandable Chat Window
- * ✓ Name / Phone / Email Capture
- * ✓ Input Validation
- * ✓ Session Management
- * ✓ Webhook (n8n compatible)
- * ✓ Error Handling
- * ✓ Debug Mode
- * ✓ Styling via Config
- * ✓ Pure JavaScript (No libraries)
- *
- * ============================================================
- */
-
+// Interactive Chat Widget for n8n (Phone Mandatory)
 (function () {
-  "use strict";
+    if (window.N8nChatWidgetLoaded) return;
+    window.N8nChatWidgetLoaded = true;
 
-  /* ============================================================
-     SECTION 1: GLOBAL CONFIG & SAFETY CHECKS
-     ============================================================ */
+    /* ---------------- FONT ---------------- */
+    const fontElement = document.createElement('link');
+    fontElement.rel = 'stylesheet';
+    fontElement.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap';
+    document.head.appendChild(fontElement);
 
-  if (!window) {
-    console.error("ChatWidget: window object not found");
-    return;
-  }
-
-  const DEFAULT_CONFIG = {
-    webhook: {
-      url: "",
-      route: "general",
-      timeout: 10000
-    },
-    branding: {
-      name: "Chat Support",
-      welcomeText: "Welcome! 👋",
-      primaryColor: "#10b981"
-    },
-    position: "right",
-    debug: false
-  };
-
-  const USER_CONFIG = window.ChatWidgetConfig || {};
-  const CONFIG = deepMerge(DEFAULT_CONFIG, USER_CONFIG);
-
-  if (!CONFIG.webhook.url) {
-    console.error("ChatWidget Error: webhook.url missing");
-    return;
-  }
-
-  /* ============================================================
-     SECTION 2: UTILITIES
-     ============================================================ */
-
-  function deepMerge(target, source) {
-    const output = Object.assign({}, target);
-    if (isObject(target) && isObject(source)) {
-      Object.keys(source).forEach((key) => {
-        if (isObject(source[key])) {
-          if (!(key in target)) Object.assign(output, { [key]: source[key] });
-          else output[key] = deepMerge(target[key], source[key]);
-        } else {
-          Object.assign(output, { [key]: source[key] });
-        }
-      });
+    /* ---------------- STYLES ---------------- */
+    const widgetStyles = document.createElement('style');
+    widgetStyles.textContent = `
+    .chat-assist-widget { font-family: 'Poppins', sans-serif; }
+    .chat-window { position: fixed; bottom: 90px; right: 20px; width: 380px; height: 580px;
+        background: #fff; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,.2);
+        display: none; flex-direction: column; overflow: hidden; z-index: 9999; }
+    .chat-window.visible { display: flex; }
+    .chat-header { padding: 16px; background: linear-gradient(135deg,#10b981,#059669);
+        color: #fff; font-weight: 600; display:flex; justify-content:space-between; align-items:center; }
+    .chat-close-btn { background:none;border:none;color:#fff;font-size:22px;cursor:pointer; }
+    .chat-welcome, .user-registration { padding: 24px; text-align: center; }
+    .chat-start-btn, .submit-registration {
+        width:100%; padding:14px; border:none; border-radius:12px;
+        background:linear-gradient(135deg,#10b981,#059669); color:#fff;
+        font-weight:600; cursor:pointer;
     }
-    return output;
-  }
-
-  function isObject(item) {
-    return item && typeof item === "object" && !Array.isArray(item);
-  }
-
-  function logDebug() {
-    if (CONFIG.debug) {
-      console.log.apply(console, arguments);
+    .registration-form { display:flex; flex-direction:column; gap:12px; }
+    .form-field { text-align:left; }
+    .form-label { font-size:14px; font-weight:500; }
+    .form-input { width:100%; padding:12px; border-radius:10px; border:1px solid #e5e7eb; }
+    .form-input.error { border-color:#ef4444; }
+    .error-text { font-size:12px; color:#ef4444; }
+    .chat-body { display:none; flex-direction:column; height:100%; }
+    .chat-body.active { display:flex; }
+    .chat-messages { flex:1; padding:16px; overflow-y:auto; background:#f9fafb; }
+    .chat-bubble { padding:12px 16px; border-radius:14px; max-width:80%; margin-bottom:10px; }
+    .user-bubble { background:#10b981; color:#fff; align-self:flex-end; }
+    .bot-bubble { background:#fff; border:1px solid #e5e7eb; }
+    .chat-controls { display:flex; padding:12px; gap:10px; border-top:1px solid #eee; }
+    .chat-textarea { flex:1; resize:none; padding:12px; border-radius:10px; border:1px solid #ddd; }
+    .chat-submit { width:48px; border:none; border-radius:10px;
+        background:linear-gradient(135deg,#10b981,#059669); color:#fff; cursor:pointer; }
+    .chat-launcher {
+        position:fixed; bottom:20px; right:20px;
+        padding:14px 18px; border-radius:999px;
+        background:linear-gradient(135deg,#10b981,#059669);
+        color:#fff; border:none; cursor:pointer; font-weight:600;
     }
-  }
+    `;
+    document.head.appendChild(widgetStyles);
 
-  function generateSessionId() {
-    return (
-      "cw-" +
-      Date.now() +
-      "-" +
-      Math.random().toString(36).substring(2, 10)
-    );
-  }
-
-  function sanitizeInput(str) {
-    return str.replace(/[<>]/g, "");
-  }
-
-  function validatePhone(phone) {
-    return /^[6-9]\d{9}$/.test(phone);
-  }
-
-  function validateEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
-
-  /* ============================================================
-     SECTION 3: STATE MANAGEMENT
-     ============================================================ */
-
-  const STATE = {
-    sessionId: generateSessionId(),
-    step: "name", // name → phone → email → chat
-    lead: {
-      name: "",
-      phone: "",
-      email: ""
-    },
-    messages: [],
-    isOpen: false
-  };
-
-  logDebug("Session ID:", STATE.sessionId);
-
-  /* ============================================================
-     SECTION 4: DOM CREATION
-     ============================================================ */
-
-  const root = document.createElement("div");
-  root.id = "cw-root";
-
-  const styles = `
-    #cw-root * { box-sizing: border-box; font-family: Arial, sans-serif; }
-
-    #cw-launcher {
-      position: fixed;
-      bottom: 20px;
-      ${CONFIG.position === "left" ? "left:20px;" : "right:20px;"}
-      background: ${CONFIG.branding.primaryColor};
-      color: #fff;
-      padding: 12px 18px;
-      border-radius: 30px;
-      cursor: pointer;
-      z-index: 9999;
+    /* ---------------- SETTINGS ---------------- */
+    const settings = window.ChatWidgetConfig || {};
+    if (!settings.webhook || !settings.webhook.url) {
+        console.error("Webhook URL missing");
+        return;
     }
 
-    #cw-box {
-      position: fixed;
-      bottom: 80px;
-      ${CONFIG.position === "left" ? "left:20px;" : "right:20px;"}
-      width: 340px;
-      height: 420px;
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 15px 40px rgba(0,0,0,.2);
-      display: none;
-      flex-direction: column;
-      z-index: 9999;
-    }
+    /* ---------------- DOM ---------------- */
+    const widgetRoot = document.createElement('div');
+    widgetRoot.className = 'chat-assist-widget';
 
-    #cw-header {
-      padding: 14px;
-      background: ${CONFIG.branding.primaryColor};
-      color: #fff;
-      font-weight: bold;
-      border-radius: 14px 14px 0 0;
-    }
+    widgetRoot.innerHTML = `
+    <div class="chat-window">
+        <div class="chat-header">
+            <span>${settings.branding?.name || 'Chat Support'}</span>
+            <button class="chat-close-btn">×</button>
+        </div>
 
-    #cw-messages {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      font-size: 14px;
-    }
+        <div class="chat-welcome">
+            <h2>${settings.branding?.welcomeText || 'Welcome 👋'}</h2>
+            <button class="chat-start-btn">Start Chat</button>
+        </div>
 
-    .cw-bot {
-      margin-bottom: 8px;
-      color: #333;
-    }
+        <div class="user-registration">
+            <h3>Please enter your details</h3>
+            <form class="registration-form">
+                <div class="form-field">
+                    <label class="form-label">Name</label>
+                    <input class="form-input" id="chat-name">
+                    <div class="error-text" id="name-error"></div>
+                </div>
 
-    .cw-user {
-      margin-bottom: 8px;
-      text-align: right;
-      color: #000;
-    }
+                <div class="form-field">
+                    <label class="form-label">Phone</label>
+                    <input class="form-input" id="chat-phone">
+                    <div class="error-text" id="phone-error"></div>
+                </div>
 
-    #cw-input {
-      display: flex;
-      border-top: 1px solid #eee;
-    }
+                <div class="form-field">
+                    <label class="form-label">Email</label>
+                    <input class="form-input" id="chat-email">
+                    <div class="error-text" id="email-error"></div>
+                </div>
 
-    #cw-input input {
-      flex: 1;
-      border: none;
-      padding: 12px;
-      outline: none;
-    }
+                <button class="submit-registration">Continue</button>
+            </form>
+        </div>
 
-    #cw-input button {
-      background: ${CONFIG.branding.primaryColor};
-      color: #fff;
-      border: none;
-      padding: 12px 16px;
-      cursor: pointer;
-    }
-  `;
-
-  root.innerHTML = `
-    <style>${styles}</style>
-    <div id="cw-launcher">Chat</div>
-    <div id="cw-box">
-      <div id="cw-header">${CONFIG.branding.name}</div>
-      <div id="cw-messages"></div>
-      <div id="cw-input">
-        <input type="text" placeholder="Type here..." />
-        <button>Send</button>
-      </div>
+        <div class="chat-body">
+            <div class="chat-messages"></div>
+            <div class="chat-controls">
+                <textarea class="chat-textarea" rows="1" placeholder="Type message..."></textarea>
+                <button class="chat-submit">➤</button>
+            </div>
+        </div>
     </div>
-  `;
 
-  document.body.appendChild(root);
+    <button class="chat-launcher">Need help?</button>
+    `;
 
-  /* ============================================================
-     SECTION 5: ELEMENT REFERENCES
-     ============================================================ */
+    document.body.appendChild(widgetRoot);
 
-  const launcher = document.getElementById("cw-launcher");
-  const box = document.getElementById("cw-box");
-  const messagesEl = document.getElementById("cw-messages");
-  const inputEl = box.querySelector("input");
-  const sendBtn = box.querySelector("button");
+    /* ---------------- ELEMENTS ---------------- */
+    const chatWindow = widgetRoot.querySelector('.chat-window');
+    const launcher = widgetRoot.querySelector('.chat-launcher');
+    const closeBtn = widgetRoot.querySelector('.chat-close-btn');
+    const startBtn = widgetRoot.querySelector('.chat-start-btn');
+    const welcome = widgetRoot.querySelector('.chat-welcome');
+    const registration = widgetRoot.querySelector('.user-registration');
+    const chatBody = widgetRoot.querySelector('.chat-body');
+    const messages = widgetRoot.querySelector('.chat-messages');
+    const textarea = widgetRoot.querySelector('.chat-textarea');
+    const sendBtn = widgetRoot.querySelector('.chat-submit');
 
-  /* ============================================================
-     SECTION 6: UI FUNCTIONS
-     ============================================================ */
+    const nameInput = widgetRoot.querySelector('#chat-name');
+    const phoneInput = widgetRoot.querySelector('#chat-phone');
+    const emailInput = widgetRoot.querySelector('#chat-email');
+    const nameError = widgetRoot.querySelector('#name-error');
+    const phoneError = widgetRoot.querySelector('#phone-error');
+    const emailError = widgetRoot.querySelector('#email-error');
+    const form = widgetRoot.querySelector('.registration-form');
 
-  function toggleChat() {
-    STATE.isOpen = !STATE.isOpen;
-    box.style.display = STATE.isOpen ? "flex" : "none";
-  }
+    /* ---------------- HELPERS ---------------- */
+    const sessionId = crypto.randomUUID();
+    const isValidPhone = p => /^[6-9]\d{9}$/.test(p);
+    const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
-  function addMessage(text, type) {
-    const div = document.createElement("div");
-    div.className = type === "user" ? "cw-user" : "cw-bot";
-    div.textContent = text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-
-    STATE.messages.push({ type, text, ts: Date.now() });
-  }
-
-  function askNextQuestion() {
-    if (STATE.step === "name") {
-      addMessage("Hi 👋 What's your name?", "bot");
-    } else if (STATE.step === "phone") {
-      addMessage("Please enter your 10-digit mobile number 📞", "bot");
-    } else if (STATE.step === "email") {
-      addMessage("Your email address 📧", "bot");
+    function addMessage(text, type) {
+        const div = document.createElement('div');
+        div.className = `chat-bubble ${type === 'user' ? 'user-bubble' : 'bot-bubble'}`;
+        div.textContent = text;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
     }
-  }
 
-  /* ============================================================
-     SECTION 7: WEBHOOK COMMUNICATION
-     ============================================================ */
+    async function sendToWebhook(text, meta) {
+        const res = await fetch(settings.webhook.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: "sendMessage",
+                sessionId,
+                route: settings.webhook.route,
+                chatInput: text,
+                metadata: meta
+            })
+        });
+        const data = await res.json();
+        addMessage(data.output || 'Thanks for your message!', 'bot');
+    }
 
-  async function sendToWebhook(message) {
-    const payload = {
-      sessionId: STATE.sessionId,
-      route: CONFIG.webhook.route,
-      message,
-      lead: STATE.lead,
-      history: STATE.messages
+    /* ---------------- EVENTS ---------------- */
+    launcher.onclick = () => chatWindow.classList.add('visible');
+    closeBtn.onclick = () => chatWindow.classList.remove('visible');
+
+    startBtn.onclick = () => {
+        welcome.style.display = 'none';
+        registration.style.display = 'block';
     };
 
-    logDebug("Sending payload:", payload);
+    form.onsubmit = async e => {
+        e.preventDefault();
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(
-        () => controller.abort(),
-        CONFIG.webhook.timeout
-      );
+        nameError.textContent = phoneError.textContent = emailError.textContent = '';
+        nameInput.classList.remove('error');
+        phoneInput.classList.remove('error');
+        emailInput.classList.remove('error');
 
-      const response = await fetch(CONFIG.webhook.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
+        const name = nameInput.value.trim();
+        const phone = phoneInput.value.trim();
+        const email = emailInput.value.trim();
 
-      clearTimeout(timeout);
+        let ok = true;
 
-      const data = await response.json();
-      if (data && data.reply) {
-        addMessage(data.reply, "bot");
-      }
-    } catch (err) {
-      console.error("ChatWidget Webhook Error:", err);
-      addMessage("⚠️ Something went wrong. Please try again.", "bot");
-    }
-  }
+        if (!name) { nameError.textContent = "Name required"; nameInput.classList.add('error'); ok = false; }
+        if (!phone || !isValidPhone(phone)) { phoneError.textContent = "Valid phone required"; phoneInput.classList.add('error'); ok = false; }
+        if (!email || !isValidEmail(email)) { emailError.textContent = "Valid email required"; emailInput.classList.add('error'); ok = false; }
 
-  /* ============================================================
-     SECTION 8: INPUT HANDLING
-     ============================================================ */
+        if (!ok) return;
 
-  function handleSend() {
-    const raw = inputEl.value.trim();
-    if (!raw) return;
+        registration.style.display = 'none';
+        chatBody.classList.add('active');
 
-    const text = sanitizeInput(raw);
-    inputEl.value = "";
-    addMessage(text, "user");
+        addMessage(`Name: ${name}\nPhone: ${phone}\nEmail: ${email}`, 'user');
 
-    if (STATE.step === "name") {
-      STATE.lead.name = text;
-      STATE.step = "phone";
-      askNextQuestion();
-      return;
-    }
+        await sendToWebhook("User registered", { name, phone, email });
+    };
 
-    if (STATE.step === "phone") {
-      if (!validatePhone(text)) {
-        addMessage("❌ Please enter a valid Indian mobile number.", "bot");
-        return;
-      }
-      STATE.lead.phone = text;
-      STATE.step = "email";
-      askNextQuestion();
-      return;
-    }
-
-    if (STATE.step === "email") {
-      if (!validateEmail(text)) {
-        addMessage("❌ Please enter a valid email address.", "bot");
-        return;
-      }
-      STATE.lead.email = text;
-      STATE.step = "chat";
-      addMessage("✅ Thanks! How can I help you today?", "bot");
-      sendToWebhook("Lead Captured");
-      return;
-    }
-
-    sendToWebhook(text);
-  }
-
-  /* ============================================================
-     SECTION 9: EVENTS
-     ============================================================ */
-
-  launcher.addEventListener("click", toggleChat);
-  sendBtn.addEventListener("click", handleSend);
-  inputEl.addEventListener("keypress", function (e) {
-    if (e.key === "Enter") handleSend();
-  });
-
-  /* ============================================================
-     SECTION 10: INIT
-     ============================================================ */
-
-  addMessage(CONFIG.branding.welcomeText, "bot");
-  askNextQuestion();
+    sendBtn.onclick = async () => {
+        const text = textarea.value.trim();
+        if (!text) return;
+        textarea.value = '';
+        addMessage(text, 'user');
+        await sendToWebhook(text, {
+            name: nameInput.value,
+            phone: phoneInput.value,
+            email: emailInput.value
+        });
+    };
 
 })();
