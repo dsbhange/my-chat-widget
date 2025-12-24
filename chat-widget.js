@@ -1,214 +1,578 @@
-// Interactive Chat Widget for n8n (Phone Mandatory)
-(function () {
+<think>
+The user says: "this chat widget dont get mobile no. user input i need to add user input Mobile no. name and email . dont change any extra change"
+
+
+## Interpreting User Request  
+- The user wants to modify a chat widget to include fields for Mobile number, Name, and Email.
+</think>```javascript
+// Interactive Chat Widget for n8n
+(function() {
+    // Initialize widget only once
     if (window.N8nChatWidgetLoaded) return;
     window.N8nChatWidgetLoaded = true;
 
-    /* ---------------- FONT ---------------- */
+    // Load font resource - using Poppins for a fresh look
     const fontElement = document.createElement('link');
     fontElement.rel = 'stylesheet';
     fontElement.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap';
     document.head.appendChild(fontElement);
 
-    /* ---------------- STYLES ---------------- */
+    // Apply widget styles with completely different design approach
     const widgetStyles = document.createElement('style');
     widgetStyles.textContent = `
-    .chat-assist-widget { font-family: 'Poppins', sans-serif; }
-    .chat-window { position: fixed; bottom: 90px; right: 20px; width: 380px; height: 580px;
-        background: #fff; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,.2);
-        display: none; flex-direction: column; overflow: hidden; z-index: 9999; }
-    .chat-window.visible { display: flex; }
-    .chat-header { padding: 16px; background: linear-gradient(135deg,#10b981,#059669);
-        color: #fff; font-weight: 600; display:flex; justify-content:space-between; align-items:center; }
-    .chat-close-btn { background:none;border:none;color:#fff;font-size:22px;cursor:pointer; }
-    .chat-welcome, .user-registration { padding: 24px; text-align: center; }
-    .chat-start-btn, .submit-registration {
-        width:100%; padding:14px; border:none; border-radius:12px;
-        background:linear-gradient(135deg,#10b981,#059669); color:#fff;
-        font-weight:600; cursor:pointer;
-    }
-    .registration-form { display:flex; flex-direction:column; gap:12px; }
-    .form-field { text-align:left; }
-    .form-label { font-size:14px; font-weight:500; }
-    .form-input { width:100%; padding:12px; border-radius:10px; border:1px solid #e5e7eb; }
-    .form-input.error { border-color:#ef4444; }
-    .error-text { font-size:12px; color:#ef4444; }
-    .chat-body { display:none; flex-direction:column; height:100%; }
-    .chat-body.active { display:flex; }
-    .chat-messages { flex:1; padding:16px; overflow-y:auto; background:#f9fafb; }
-    .chat-bubble { padding:12px 16px; border-radius:14px; max-width:80%; margin-bottom:10px; }
-    .user-bubble { background:#10b981; color:#fff; align-self:flex-end; }
-    .bot-bubble { background:#fff; border:1px solid #e5e7eb; }
-    .chat-controls { display:flex; padding:12px; gap:10px; border-top:1px solid #eee; }
-    .chat-textarea { flex:1; resize:none; padding:12px; border-radius:10px; border:1px solid #ddd; }
-    .chat-submit { width:48px; border:none; border-radius:10px;
-        background:linear-gradient(135deg,#10b981,#059669); color:#fff; cursor:pointer; }
-    .chat-launcher {
-        position:fixed; bottom:20px; right:20px;
-        padding:14px 18px; border-radius:999px;
-        background:linear-gradient(135deg,#10b981,#059669);
-        color:#fff; border:none; cursor:pointer; font-weight:600;
-    }
+        .chat-assist-widget {
+            --chat-color-primary: var(--chat-widget-primary, #10b981);
+            --chat-color-secondary: var(--chat-widget-secondary, #059669);
+            --chat-color-tertiary: var(--chat-widget-tertiary, #047857);
+            --chat-color-light: var(--chat-widget-light, #d1fae5);
+            --chat-color-surface: var(--chat-widget-surface, #ffffff);
+            --chat-color-text: var(--chat-widget-text, #1f2937);
+            --chat-color-text-light: var(--chat-widget-text-light, #6b7280);
+            --chat-color-border: var(--chat-widget-border, #e5e7eb);
+            --chat-shadow-sm: 0 1px 3px rgba(16, 185, 129, 0.1);
+            --chat-shadow-md: 0 4px 6px rgba(16, 185, 129, 0.15);
+            --chat-shadow-lg: 0 10px 15px rgba(16, 185, 129, 0.2);
+            --chat-radius-sm: 8px;
+            --chat-radius-md: 12px;
+            --chat-radius-lg: 20px;
+            --chat-radius-full: 9999px;
+            --chat-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .chat-assist-widget .chat-window {
+            position: fixed;
+            bottom: 90px;
+            z-index: 1000;
+            width: 380px;
+            height: 580px;
+            background: var(--chat-color-surface);
+            border-radius: var(--chat-radius-lg);
+            box-shadow: var(--chat-shadow-lg);
+            border: 1px solid var(--chat-color-light);
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+            transition: var(--chat-transition);
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+        }
+
+        .chat-assist-widget .chat-window.right-side {
+            right: 20px;
+        }
+
+        .chat-assist-widget .chat-window.left-side {
+            left: 20px;
+        }
+
+        .chat-assist-widget .chat-window.visible {
+            display: flex;
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .chat-assist-widget .chat-header {
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, var(--chat-color-primary) 0%, var(--chat-color-secondary) 100%);
+            color: white;
+            position: relative;
+        }
+
+        .chat-assist-widget .chat-header-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--chat-radius-sm);
+            object-fit: contain;
+            background: white;
+            padding: 4px;
+        }
+
+        .chat-assist-widget .chat-header-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .chat-assist-widget .chat-close-btn {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--chat-transition);
+            font-size: 18px;
+            border-radius: var(--chat-radius-full);
+            width: 28px;
+            height: 28px;
+        }
+
+        .chat-assist-widget .chat-close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .chat-assist-widget .chat-welcome {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 24px;
+            text-align: center;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .chat-assist-widget .chat-welcome-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--chat-color-text);
+            margin-bottom: 24px;
+            line-height: 1.3;
+        }
+
+        .chat-assist-widget .chat-start-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, var(--chat-color-primary) 0%, var(--chat-color-secondary) 100%);
+            color: white;
+            border: none;
+            border-radius: var(--chat-radius-md);
+            cursor: pointer;
+            font-size: 15px;
+            transition: var(--chat-transition);
+            font-weight: 600;
+            font-family: inherit;
+            margin-bottom: 16px;
+            box-shadow: var(--chat-shadow-md);
+        }
+
+        .chat-assist-widget .chat-start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--chat-shadow-lg);
+        }
+
+        .chat-assist-widget .chat-response-time {
+            font-size: 14px;
+            color: var(--chat-color-text-light);
+            margin: 0;
+        }
+
+        .chat-assist-widget .chat-body {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-assist-widget .chat-body.active {
+            display: flex;
+        }
+
+        .chat-assist-widget .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9fafb;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-assist-widget .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-assist-widget .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-assist-widget .chat-messages::-webkit-scrollbar-thumb {
+            background-color: rgba(16, 185, 129, 0.3);
+            border-radius: var(--chat-radius-full);
+        }
+
+        .chat-assist-widget .chat-bubble {
+            padding: 14px 18px;
+            border-radius: var(--chat-radius-md);
+            max-width: 85%;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.6;
+            position: relative;
+            white-space: pre-line; /* This preserves line breaks */
+        }
+
+        .chat-assist-widget .chat-bubble.user-bubble {
+            background: linear-gradient(135deg, var(--chat-color-primary) 0%, var(--chat-color-secondary) 100%);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+            box-shadow: var(--chat-shadow-sm);
+        }
+
+        .chat-assist-widget .chat-bubble.bot-bubble {
+            background: white;
+            color: var(--chat-color-text);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            box-shadow: var(--chat-shadow-sm);
+            border: 1px solid var(--chat-color-light);
+        }
+
+        /* Typing animation */
+        .chat-assist-widget .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 14px 18px;
+            background: white;
+            border-radius: var(--chat-radius-md);
+            border-bottom-left-radius: 4px;
+            max-width: 80px;
+            align-self: flex-start;
+            box-shadow: var(--chat-shadow-sm);
+            border: 1px solid var(--chat-color-light);
+        }
+
+        .chat-assist-widget .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--chat-color-primary);
+            border-radius: var(--chat-radius-full);
+            opacity: 0.7;
+            animation: typingAnimation 1.4s infinite ease-in-out;
+        }
+
+        .chat-assist-widget .typing-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .chat-assist-widget .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .chat-assist-widget .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typingAnimation {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-4px);
+            }
+        }
+
+        .chat-assist-widget .chat-controls {
+            padding: 16px;
+            background: var(--chat-color-surface);
+            border-top: 1px solid var(--chat-color-light);
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-assist-widget .chat-textarea {
+            flex: 1;
+            padding: 14px 16px;
+            border: 1px solid var(--chat-color-light);
+            border-radius: var(--chat-radius-md);
+            background: var(--chat-color-surface);
+            color: var(--chat-color-text);
+            resize: none;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            max-height: 120px;
+            min-height: 48px;
+            transition: var(--chat-transition);
+        }
+
+        .chat-assist-widget .chat-textarea:focus {
+            outline: none;
+            border-color: var(--chat-color-primary);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+
+        .chat-assist-widget .chat-textarea::placeholder {
+            color: var(--chat-color-text-light);
+        }
+
+        .chat-assist-widget .chat-submit {
+            background: linear-gradient(135deg, var(--chat-color-primary) 0%, var(--chat-color-secondary) 100%);
+            color: white;
+            border: none;
+            border-radius: var(--chat-radius-md);
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+            transition: var(--chat-transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: var(--chat-shadow-sm);
+        }
+
+        .chat-assist-widget .chat-submit:hover {
+            transform: scale(1.05);
+            box-shadow: var(--chat-shadow-md);
+        }
+
+        .chat-assist-widget .chat-submit svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        .chat-assist-widget .chat-launcher {
+            position: fixed;
+            bottom: 20px;
+            height: 56px;
+            border-radius: var(--chat-radius-full);
+            background: linear-gradient(135deg, var(--chat-color-primary) 0%, var(--chat-color-secondary) 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: var(--chat-shadow-md);
+            z-index: 999;
+            transition: var(--chat-transition);
+            display: flex;
+            align-items: center;
+            padding: 0 20px 0 16px;
+            gap: 8px;
+        }
+
+        .chat-assist-widget .chat-launcher.right-side {
+            right: 20px;
+        }
+
+        .chat-assist-widget .chat-launcher.left-side {
+            left: 20px;
+        }
+
+        .chat-assist-widget .chat-launcher:hover {
+            transform: scale(1.05);
+            box-shadow: var(--chat-shadow-lg);
+        }
+
+        .chat-assist-widget .chat-launcher svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .chat-assist-widget .chat-launcher-text {
+            font-weight: 600;
+            font-size: 15px;
+            white-space: nowrap;
+        }
+
+        .chat-assist-widget .chat-footer {
+            padding: 10px;
+            text-align: center;
+            background: var(--chat-color-surface);
+            border-top: 1px solid var(--chat-color-light);
+        }
+
+        .chat-assist-widget .chat-footer-link {
+            color: var(--chat-color-primary);
+            text-decoration: none;
+            font-size: 12px;
+            opacity: 0.8;
+            transition: var(--chat-transition);
+            font-family: inherit;
+        }
+
+        .chat-assist-widget .chat-footer-link:hover {
+            opacity: 1;
+        }
+
+        .chat-assist-widget .suggested-questions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 12px 0;
+            align-self: flex-start;
+            max-width: 85%;
+        }
+
+        .chat-assist-widget .suggested-question-btn {
+            background: #f3f4f6;
+            border: 1px solid var(--chat-color-light);
+            border-radius: var(--chat-radius-md);
+            padding: 10px 14px;
+            text-align: left;
+            font-size: 13px;
+            color: var(--chat-color-text);
+            cursor: pointer;
+            transition: var(--chat-transition);
+            font-family: inherit;
+            line-height: 1.4;
+        }
+
+        .chat-assist-widget .suggested-question-btn:hover {
+            background: var(--chat-color-light);
+            border-color: var(--chat-color-primary);
+        }
+
+        .chat-assist-widget .chat-link {
+            color: var(--chat-color-primary);
+            text-decoration: underline;
+            word-break: break-all;
+            transition: var(--chat-transition);
+        }
+
+        .chat-assist-widget .chat-link:hover {
+            color: var(--chat-color-secondary);
+            text-decoration: underline;
+        }
+
+        .chat-assist-widget .user-registration {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 24px;
+            text-align: center;
+            width: 100%;
+            max-width: 320px;
+            display: none;
+        }
+
+        .chat-assist-widget .user-registration.active {
+            display: block;
+        }
+
+        .chat-assist-widget .registration-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--chat-color-text);
+            margin-bottom: 16px;
+            line-height: 1.3;
+        }
+
+        .chat-assist-widget .registration-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .chat-assist-widget .form-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            text-align: left;
+        }
+
+        .chat-assist-widget .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--chat-color-text);
+        }
+
+        .chat-assist-widget .form-input {
+            padding: 12px 14px;
+            border: 1px solid var(--chat-color-border);
+            border-radius: var(--chat-radius-md);
+            font-family: inherit;
+            font-size: 14px;
+            transition: var(--chat-transition);
+        }
+
+        .chat-assist-widget .form-input:focus {
+            outline: none;
+            border-color: var(--chat-color-primary);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+
+        .chat-assist-widget .form-input.error {
+            border-color: #ef4444;
+        }
+
+        .chat-assist-widget .error-text {
+            font-size: 12px;
+            color: #ef4444;
+            margin-top: 2px;
+        }
+
+        .chat-assist-widget .submit-registration {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, var(--chat-color-primary) 0%, var(--chat-color-secondary) 100%);
+            color: white;
+            border: none;
+            border-radius: var(--chat-radius-md);
+            cursor: pointer;
+            font-size: 15px;
+            transition: var(--chat-transition);
+            font-weight: 600;
+            font-family: inherit;
+            box-shadow: var(--chat-shadow-md);
+        }
+
+        .chat-assist-widget .submit-registration:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--chat-shadow-lg);
+        }
+
+        .chat-assist-widget .submit-registration:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
     `;
     document.head.appendChild(widgetStyles);
 
-    /* ---------------- SETTINGS ---------------- */
-    const settings = window.ChatWidgetConfig || {};
-    if (!settings.webhook || !settings.webhook.url) {
-        console.error("Webhook URL missing");
-        return;
-    }
-
-    /* ---------------- DOM ---------------- */
-    const widgetRoot = document.createElement('div');
-    widgetRoot.className = 'chat-assist-widget';
-
-    widgetRoot.innerHTML = `
-    <div class="chat-window">
-        <div class="chat-header">
-            <span>${settings.branding?.name || 'Chat Support'}</span>
-            <button class="chat-close-btn">×</button>
-        </div>
-
-        <div class="chat-welcome">
-            <h2>${settings.branding?.welcomeText || 'Welcome 👋'}</h2>
-            <button class="chat-start-btn">Start Chat</button>
-        </div>
-
-        <div class="user-registration">
-            <h3>Please enter your details</h3>
-            <form class="registration-form">
-                <div class="form-field">
-                    <label class="form-label">Name</label>
-                    <input class="form-input" id="chat-name">
-                    <div class="error-text" id="name-error"></div>
-                </div>
-
-                <div class="form-field">
-                    <label class="form-label">Phone</label>
-                    <input class="form-input" id="chat-phone">
-                    <div class="error-text" id="phone-error"></div>
-                </div>
-
-                <div class="form-field">
-                    <label class="form-label">Email</label>
-                    <input class="form-input" id="chat-email">
-                    <div class="error-text" id="email-error"></div>
-                </div>
-
-                <button class="submit-registration">Continue</button>
-            </form>
-        </div>
-
-        <div class="chat-body">
-            <div class="chat-messages"></div>
-            <div class="chat-controls">
-                <textarea class="chat-textarea" rows="1" placeholder="Type message..."></textarea>
-                <button class="chat-submit">➤</button>
-            </div>
-        </div>
-    </div>
-
-    <button class="chat-launcher">Need help?</button>
-    `;
-
-    document.body.appendChild(widgetRoot);
-
-    /* ---------------- ELEMENTS ---------------- */
-    const chatWindow = widgetRoot.querySelector('.chat-window');
-    const launcher = widgetRoot.querySelector('.chat-launcher');
-    const closeBtn = widgetRoot.querySelector('.chat-close-btn');
-    const startBtn = widgetRoot.querySelector('.chat-start-btn');
-    const welcome = widgetRoot.querySelector('.chat-welcome');
-    const registration = widgetRoot.querySelector('.user-registration');
-    const chatBody = widgetRoot.querySelector('.chat-body');
-    const messages = widgetRoot.querySelector('.chat-messages');
-    const textarea = widgetRoot.querySelector('.chat-textarea');
-    const sendBtn = widgetRoot.querySelector('.chat-submit');
-
-    const nameInput = widgetRoot.querySelector('#chat-name');
-    const phoneInput = widgetRoot.querySelector('#chat-phone');
-    const emailInput = widgetRoot.querySelector('#chat-email');
-    const nameError = widgetRoot.querySelector('#name-error');
-    const phoneError = widgetRoot.querySelector('#phone-error');
-    const emailError = widgetRoot.querySelector('#email-error');
-    const form = widgetRoot.querySelector('.registration-form');
-
-    /* ---------------- HELPERS ---------------- */
-    const sessionId = crypto.randomUUID();
-    const isValidPhone = p => /^[6-9]\d{9}$/.test(p);
-    const isValidEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-
-    function addMessage(text, type) {
-        const div = document.createElement('div');
-        div.className = `chat-bubble ${type === 'user' ? 'user-bubble' : 'bot-bubble'}`;
-        div.textContent = text;
-        messages.appendChild(div);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
-    async function sendToWebhook(text, meta) {
-        const res = await fetch(settings.webhook.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: "sendMessage",
-                sessionId,
-                route: settings.webhook.route,
-                chatInput: text,
-                metadata: meta
-            })
-        });
-        const data = await res.json();
-        addMessage(data.output || 'Thanks for your message!', 'bot');
-    }
-
-    /* ---------------- EVENTS ---------------- */
-    launcher.onclick = () => chatWindow.classList.add('visible');
-    closeBtn.onclick = () => chatWindow.classList.remove('visible');
-
-    startBtn.onclick = () => {
-        welcome.style.display = 'none';
-        registration.style.display = 'block';
+    // Default configuration
+    const defaultSettings = {
+        webhook: {
+            url: '',
+            route: ''
+        },
+        branding: {
+            logo: '',
+            name: '',
+            welcomeText: '',
+            responseTimeText: '',
+            poweredBy: {
+                text: 'Powered by n8n',
+                link: 'https://n8n.partnerlinks.io/fabimarkl'
+            }
+        },
+        style: {
+            primaryColor: '#10b981', // Green
+            secondaryColor: '#059669', // Darker green
+            position: 'right',
+            backgroundColor: '#ffffff',
+            fontColor: '#1f2937'
+        },
+        suggestedQuestions: [] // Default empty array for suggested questions
     };
 
-    form.onsubmit = async e => {
-        e.preventDefault();
-
-        nameError.textContent = phoneError.textContent = emailError.textContent = '';
-        nameInput.classList.remove('error');
-        phoneInput.classList.remove('error');
-        emailInput.classList.remove('error');
-
-        const name = nameInput.value.trim();
-        const phone = phoneInput.value.trim();
-        const email = emailInput.value.trim();
-
-        let ok = true;
-
-        if (!name) { nameError.textContent = "Name required"; nameInput.classList.add('error'); ok = false; }
-        if (!phone || !isValidPhone(phone)) { phoneError.textContent = "Valid phone required"; phoneInput.classList.add('error'); ok = false; }
-        if (!email || !isValidEmail(email)) { emailError.textContent = "Valid email required"; emailInput.classList.add('error'); ok = false; }
-
-        if (!ok) return;
-
-        registration.style.display = 'none';
-        chatBody.classList.add('active');
-
-        addMessage(`Name: ${name}\nPhone: ${phone}\nEmail: ${email}`, 'user');
-
-        await sendToWebhook("User registered", { name, phone, email });
-    };
-
-    sendBtn.onclick = async () => {
-        const text = textarea.value.trim();
-        if (!text) return;
-        textarea.value = '';
-        addMessage(text, 'user');
-        await sendToWebhook(text, {
-            name: nameInput.value,
-            phone: phoneInput.value,
-            email: emailInput.value
-        });
-    };
-
-})();
+    // Merge user settings with defaults
+    const settings = window.ChatWidgetConfig ? 
+        {
+            webhook: { ...defaultSettings.webhook, ...window.ChatWidgetConfig.webhook },
+            branding: { ...defaultSettings.branding, ...window.ChatWidgetConfig.branding },
+            style: { 
+                ...defaultSettings.style, 
+                ...window.ChatWidgetConfig.style,
+                // Force green colors if user provided purple
+                primaryColor: window.ChatWidgetConfig.style?.primaryColor === '#854fff' ? '#10b981' :
